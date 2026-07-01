@@ -19,13 +19,16 @@ def estrai_database_turni(pdf_file):
                     matr_i = str(riga[0]).split('\n')
                     tm_i = str(riga[5] if riga[5] else "").split('\n')
                     mon_i = str(riga[6] if riga[6] else "").split('\n')
+                    dur_i = str(riga[8] if len(riga) > 8 and riga[8] else "").split('\n')
                     for i in range(min(len(matr_i), len(tm_i))):
                         m = matr_i[i].strip().lstrip("0")
                         if not m: continue
-                        linea = tm_i[i].split('-')[0].strip()
+                        linea = tm_i[i].split('-')[0].strip() if i < len(tm_i) else ""
                         mo = mon_i[i].strip().replace('.', ':') if i < len(mon_i) else ""
-                        if linea and mo:
-                            database_turni[m] = f"{linea} {mo}"
+                        du = dur_i[i].strip().replace('.', ':') if i < len(dur_i) else ""
+                        if linea:
+                            # Ricostruiamo la stringa completa come la volevi
+                            database_turni[m] = f"{linea} {mo} {du}".strip()
     return database_turni
 
 uploaded_excel = st.file_uploader("Carica file Excel", type=["xlsx"])
@@ -47,7 +50,7 @@ if uploaded_excel and uploaded_pdf:
         thin = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
         gray = PatternFill(start_color="D3D3D3", end_color="D3D3D3", fill_type="solid")
 
-        # Intestazione e Titolo
+        # Intestazioni
         ws.merge_cells('A1:C1'); ws.merge_cells('E1:G1')
         ws['A1'] = ws['E1'] = "Variazioni servizio - Giorno: 2"
         for c in ['A1', 'E1']: ws[c].font = bold; ws[c].alignment = center
@@ -58,16 +61,16 @@ if uploaded_excel and uploaded_pdf:
                 c = ws.cell(row=2, column=start + col, value=h)
                 c.font = bold; c.fill = gray; c.border = thin; c.alignment = center
 
-        # Scrittura riga per riga
+        # Scrittura riga per riga (Mantiene l'ordine originale)
         row_target = 3
         for row in range(3, ws_orig.max_row + 1):
-            # Sinistra (col 1,2) e Destra (col 5,6)
             for i, cols in enumerate([(1, 2), (5, 6)]):
                 nome = ws_orig.cell(row=row, column=cols[0]).value
                 turno_orig = ws_orig.cell(row=row, column=cols[1]).value
                 if nome:
                     m_match = re.match(r"^(\d+)", str(nome))
                     m_str = m_match.group(1).lstrip("0") if m_match else ""
+                    # Usa il turno dal PDF se trovato, altrimenti mantieni l'originale
                     turno = db.get(m_str, str(turno_orig or ""))
                     
                     start_c = 0 if i == 0 else 4
@@ -76,9 +79,11 @@ if uploaded_excel and uploaded_pdf:
                     ws.cell(row=row_target, column=start_c + 3, value="").border = thin
             row_target += 1
         
-        for col in ['A', 'E']: ws.column_dimensions[col].width = 25
-        for col in ['B', 'F', 'C', 'G']: ws.column_dimensions[col].width = 15
+        # Larghezza colonne
+        ws.column_dimensions['A'].width = 25; ws.column_dimensions['E'].width = 25
+        for col in ['B', 'C', 'F', 'G']: ws.column_dimensions[col].width = 15
             
         output = io.BytesIO()
         wb.save(output); output.seek(0)
+        st.success("File generato con successo!")
         st.download_button("📥 Scarica Excel", output, "Variazioni_Finale.xlsx")
