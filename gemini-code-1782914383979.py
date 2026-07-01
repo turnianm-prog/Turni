@@ -46,26 +46,29 @@ if uploaded_excel and uploaded_pdf:
             ws_orig = wb_orig.active
             
             dati = []
+            # Scansione di tutte le righe nell'Excel originale
             for row in range(3, ws_orig.max_row + 1):
-                for cols in [(1,2,3), (5,6,7)]:
-                    val_cog = ws_orig.cell(row=row, column=cols[0]).value
+                for col_cognome, col_turno in [(1, 2), (5, 6)]:
+                    val_cog = ws_orig.cell(row=row, column=col_cognome).value
                     if val_cog:
                         cog_str = str(val_cog).strip()
                         matr = re.match(r"^(\d+)", cog_str)
                         m_str = matr.group(1).lstrip("0") if matr else ""
-                        turno = str(ws_orig.cell(row=row, column=cols[1]).value or "")
-                        if m_str in db: turno = db[m_str]
-                        dati.append({"m": m_str, "c": cog_str, "t": turno})
+                        
+                        # Se la matricola è nel PDF prendiamo il turno, altrimenti scriviamo "-"
+                        turno = db.get(m_str, "-") 
+                        
+                        dati.append({"c": cog_str, "t": turno})
             
-            # Creazione nuovo file con formattazione migliorata
+            # Creazione nuovo file
             wb = openpyxl.Workbook()
             ws = wb.active
             
-            # Stili
             bordo_sottile = Side(border_style="thin", color="000000")
             bordo = Border(left=bordo_sottile, right=bordo_sottile, top=bordo_sottile, bottom=bordo_sottile)
             allineamento = Alignment(horizontal="left", vertical="center")
             
+            # Calcolo per dividere i dati in due colonne
             max_r = math.ceil(len(dati) / 2) if dati else 1
             for i, d in enumerate(dati):
                 lato = 0 if i < max_r else 1
@@ -75,14 +78,12 @@ if uploaded_excel and uploaded_pdf:
                 c1 = ws.cell(row=r, column=c, value=d['c'])
                 c2 = ws.cell(row=r, column=c+1, value=d['t'])
                 
-                # Applicazione stili
                 for cella in [c1, c2]:
                     cella.border = bordo
                     cella.alignment = allineamento
-                
                 ws.row_dimensions[r].height = 20
             
-            # Impostazione larghezza colonne
+            # Impostazioni larghezza
             ws.column_dimensions['A'].width = 25
             ws.column_dimensions['B'].width = 20
             ws.column_dimensions['C'].width = 2
@@ -93,7 +94,7 @@ if uploaded_excel and uploaded_pdf:
             wb.save(output)
             output.seek(0)
             
-            st.success("Operazione completata!")
+            st.success("Operazione completata! Tutti i nomi sono stati inclusi.")
             st.download_button(
                 label="📥 Scarica Excel Formattato",
                 data=output,
